@@ -31,6 +31,7 @@ import java.awt.event.WindowEvent;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import sun.awt.IconInfo;
@@ -45,6 +46,8 @@ abstract class XDecoratedPeer extends XWindowPeer {
     private static final PlatformLogger insLog = PlatformLogger.getLogger("sun.awt.X11.insets.XDecoratedPeer");
     private static final PlatformLogger focusLog = PlatformLogger.getLogger("sun.awt.X11.focus.XDecoratedPeer");
     private static final PlatformLogger iconLog = PlatformLogger.getLogger("sun.awt.X11.icon.XDecoratedPeer");
+
+    private static final String INSETS_PROP_NAME = "XDecoratedPeer.insets.changed";
 
     // Set to true when we get the first ConfigureNotify after being
     // reparented - indicates that WM has adopted the top-level.
@@ -326,7 +329,9 @@ abstract class XDecoratedPeer extends XWindowPeer {
 
     private void resetWMSetInsets() {
         if (XWM.getWMID() != XWM.UNITY_COMPIZ_WM) {
+            var oldInsets = currentInsets;
             currentInsets = new Insets(0, 0, 0, 0);
+            fireInsetsPropertyChange(oldInsets);
             wm_set_insets = null;
         } else {
             insets_corrected = false;
@@ -375,7 +380,9 @@ abstract class XDecoratedPeer extends XWindowPeer {
                 }
                 if (!copyAndScaleDown(in).equals(dimensions.getInsets())) {
                     if (insets_corrected || isMaximized()) {
+                        var oldInsets = currentInsets;
                         currentInsets = in;
+                        fireInsetsPropertyChange(oldInsets);
                         insets_corrected = true;
                         // insets were changed by WM. To handle this situation
                         // re-request window bounds because the current
@@ -494,7 +501,9 @@ abstract class XDecoratedPeer extends XWindowPeer {
             insLog.finest("Correction {0}", correction);
         }
         if (!isNull(correction)) {
+            var oldInsets = currentInsets;
             currentInsets = copy(correctWM);
+            fireInsetsPropertyChange(oldInsets);
             applyGuessedInsets();
 
             //Fix for 6318109: PIT: Min Size is not honored properly when a
@@ -554,7 +563,9 @@ abstract class XDecoratedPeer extends XWindowPeer {
 
     private void applyGuessedInsets() {
         Insets guessed = guessInsets();
+        var oldInsets = currentInsets;
         currentInsets = copy(guessed);
+        fireInsetsPropertyChange(oldInsets);
     }
 
     @Override
@@ -1209,6 +1220,12 @@ abstract class XDecoratedPeer extends XWindowPeer {
             }
         } else {
             requestWindowFocus(requestTimeStamp, true);
+        }
+    }
+
+    private void fireInsetsPropertyChange(Insets prevInsets) {
+        if (!Objects.equals(prevInsets, currentInsets)) {
+            target.firePropertyChange(INSETS_PROP_NAME, 0, 1);
         }
     }
 
